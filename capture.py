@@ -1,15 +1,9 @@
 import pacai.core.agentinfo
 import pacai.util.alias
 from pacai.search.distance import manhattan_distance
-<<<<<<< HEAD
 from pacai.search.distance import maze_distance
 import pacai.core.gamestate
 import pacai.student.singlesearch
-=======
-import pacai.core.gamestate
-
-
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
 
 
 def create_team() -> list[pacai.core.agentinfo.AgentInfo]:
@@ -23,17 +17,12 @@ def create_team() -> list[pacai.core.agentinfo.AgentInfo]:
     return [agent1_info, agent2_info]
 
 
-<<<<<<< HEAD
-=======
-
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
 class MyAgent1(pacai.core.agent.Agent):
     """ An agent that just takes random (legal) action. """
 
 
     def get_action(self, state: pacai.core.gamestate.GameState) -> pacai.core.action.Action:
         """ Choose a random action. """
-<<<<<<< HEAD
 
         
         legal_actions = state.get_legal_actions()
@@ -57,10 +46,6 @@ class MyAgent1(pacai.core.agent.Agent):
             if value == max_value and action != 'STOP':
                 print("this is the best", action)
                 return action
-=======
-        
-        legal_actions = state.get_legal_actions()
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
 
         return self.rng.choice(legal_actions)
     
@@ -70,20 +55,13 @@ class MyAgent1(pacai.core.agent.Agent):
         """
 
         feature_dict = {}
-<<<<<<< HEAD
         pos_pacman = state.get_agent_position()
-=======
-        pos = state.get_agent_position()
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
 
         for action in actions:
             successor_state = state.generate_successor(action)
             pos_successor = successor_state.get_agent_position()
-<<<<<<< HEAD
 
             enemies = [successor_state.get_agent_position(i) for i in successor_state.get_opponent_positions()]
-=======
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
             
             # offense (goal is to get food and avoid other team (havent incorporated other team yet))
             # gets closest food
@@ -92,16 +70,11 @@ class MyAgent1(pacai.core.agent.Agent):
 
             closest_food = 9999
             for f in food:
-<<<<<<< HEAD
                 m_dist_food = maze_distance(pos_pacman, f, state)
-=======
-                m_dist_food = manhattan_distance(pos_pacman, f, state)
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
                 if  m_dist_food < closest_food:
                     closest_food = m_dist_food
             # defense (goal is to search for invaders and eat them)
             # checks the dist of closest invader
-<<<<<<< HEAD
             curr_food_distance = min(maze_distance(pos_successor, f, state) for f in food)
 
 
@@ -202,52 +175,6 @@ class MyAgent1(pacai.core.agent.Agent):
         return best_act'''
 
         
-=======
-
-            # beased on successor state to eval next action
-            invaders= successor_state.get_invader_positions()
-            invader_count = len(invaders)
-            if invaders and not state.is_pacman():
-                scared = state.is_scared()
-                closest_invader_dist = 9999
-                for i in invaders:
-                    pos_i = state.get_agent_position(index of invader)
-                    m_dist = manhattan_distance(pos_pacman, pos_i, state)
-                    if m_dist < closest_invader_dist:
-                        closest_invader_dist = m_dist
-            
-            # populate dict (work in progress, not all is important mostly added the "important" methods on the documentation just because)
-            feature_dict[action] = {
-                'food_distance' : closest_food,
-                "food_count" : food_count,
-                "team_pos" : state.get_team_positions(),
-                "opp_pos" : state.get_opponent_positions(),
-                "invader_distance" : closest_invader_dist,
-            }
-        return feature_dict
-
-    def eval_action(self, state: pacai.core.gamestate.GameState):
-        # scoring actions here to choose best/highest!
-        best_score = 0.0
-        best_act = None
-
-        actions = state.get_legal_actions()
-        # which action is best loop : have not scored what is good/bad by how much yet
-        feature_table = self.features(state, actions)
-        for action in actions:
-            features = feature_table[action]
-            curr_score = ....
-            if curr_score > best_score:
-                best_score = curr_score
-                best_act = action
-        return best_act
-        
-
-        
-
-        
-
->>>>>>> c825e9e128c9da0dc9c2f0c8a8c8a5979e048196
 
 class MyAgent2(pacai.core.agent.Agent):
     """ An agent that just takes random (legal) action. """
