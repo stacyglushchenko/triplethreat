@@ -32,33 +32,41 @@ class MyAgent1(pacai.core.agent.Agent):
 
         actions = state.get_legal_actions(pos)
         for action in actions:
+            successor_state = state.generate_successor(action)
+            pos_successor = successor_state.get_agent_position()
+            
+            # offense
+            food = successor_state.get_food()
+            food_count = len(food)
+
+            closest_food = 9999
+            for f in food:
+                m_dist_food = manhattan_distance(pos_pacman, f, state)
+                if  m_dist_food < closest_food:
+                    closest_food = m_dist_food
+            # defense
+            invaders= successor_state.get_invader_positions()
+            invader_count = len(invaders)
+            if invaders and not state.is_pacman():
+                scared = state.is_scared()
+                closest_invader_dist = 9999
+                for i in invaders:
+                    pos_i = state.get_agent_position(index of invader)
+                    m_dist = manhattan_distance(pos_pacman, pos_i, state)
+                    if m_dist < closest_invader_dist:
+                        closest_invader_dist = m_dist
+            
             feature_dict[action] = {
-                'food' : state.get_food(),
-                "food_count" : state.food_count(),
+                'food_distance' : closest_food,
+                "food_count" : food_count,
                 "team_pos" : state.get_team_positions(),
                 "opp_pos" : state.get_opponent_positions(),
-                "invader_pos" : state.get_invader_positions(),
+                "invader_distance" : closest_invader_dist,
             }
         return feature_dict
 
     def eval_action(self, state: pacai.core.gamestate.GameState, action: pacai.core.action.Action):
-        # offense
-        food = state.get_food()
-        
-
-        # defense
-        pos_pacman = state.get_agent_position()
-
-        invaders= state.get_invader_positions()
-        if invaders and not state.is_pacman():
-            scared = state.is_scared()
-            closest_dist = 9999
-            for i in invaders:
-                pos_i = state.get_agent_position(index of invader)
-                m_dist = manhattan_distance(pos_pacman, pos_i, state)
-                if m_dist < closest_dist:
-                    closest_dist = m_dist
-
+        # scoring actions here to choose best/highest!
 
         
 
