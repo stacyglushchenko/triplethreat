@@ -21,6 +21,7 @@ def create_team() -> list[pacai.core.agentinfo.AgentInfo]:
 class MyAgent1(pacai.core.agent.Agent):
     """ An agent that just takes random (legal) action. """
 
+
     def get_action(self, state: pacai.core.gamestate.GameState) -> pacai.core.action.Action:
         """ Choose a random action. """
         
@@ -29,6 +30,10 @@ class MyAgent1(pacai.core.agent.Agent):
         return self.rng.choice(legal_actions)
     
     def features(self, state: pacai.core.gamestate.GameState, actions: list[pacai.core.action.Action]):
+        """ 
+        Creates features for each action and stores them in a dictionairy to later score based on pacman's situation/placement in the environment 
+        """
+
         feature_dict = {}
         pos = state.get_agent_position()
 
@@ -36,7 +41,8 @@ class MyAgent1(pacai.core.agent.Agent):
             successor_state = state.generate_successor(action)
             pos_successor = successor_state.get_agent_position()
             
-            # offense
+            # offense (goal is to get food and avoid other team (havent incorporated other team yet))
+            # gets closest food
             food = successor_state.get_food()
             food_count = len(food)
 
@@ -45,7 +51,10 @@ class MyAgent1(pacai.core.agent.Agent):
                 m_dist_food = manhattan_distance(pos_pacman, f, state)
                 if  m_dist_food < closest_food:
                     closest_food = m_dist_food
-            # defense
+            # defense (goal is to search for invaders and eat them)
+            # checks the dist of closest invader
+
+            # beased on successor state to eval next action
             invaders= successor_state.get_invader_positions()
             invader_count = len(invaders)
             if invaders and not state.is_pacman():
@@ -57,6 +66,7 @@ class MyAgent1(pacai.core.agent.Agent):
                     if m_dist < closest_invader_dist:
                         closest_invader_dist = m_dist
             
+            # populate dict (work in progress, not all is important mostly added the "important" methods on the documentation just because)
             feature_dict[action] = {
                 'food_distance' : closest_food,
                 "food_count" : food_count,
@@ -72,7 +82,7 @@ class MyAgent1(pacai.core.agent.Agent):
         best_act = None
 
         actions = state.get_legal_actions()
-
+        # which action is best loop : have not scored what is good/bad by how much yet
         feature_table = self.features(state, actions)
         for action in actions:
             features = feature_table[action]
