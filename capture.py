@@ -16,8 +16,12 @@ def create_team() -> list[pacai.core.agentinfo.AgentInfo]:
 
     return [agent1_info, agent2_info]
 
+
+
 class MyAgent1(pacai.core.agent.Agent):
     """ An agent that just takes random (legal) action. """
+    def manhattan_dist(self, a, b):
+
 
     def get_action(self, state: pacai.core.gamestate.GameState) -> pacai.core.action.Action:
         """ Choose a random action. """
@@ -26,11 +30,10 @@ class MyAgent1(pacai.core.agent.Agent):
 
         return self.rng.choice(legal_actions)
     
-    def features(self, state: pacai.core.gamestate.GameState):
+    def features(self, state: pacai.core.gamestate.GameState, action: pacai.core.action.Action):
         feature_dict = {}
         pos = state.get_agent_position()
 
-        actions = state.get_legal_actions(pos)
         for action in actions:
             successor_state = state.generate_successor(action)
             pos_successor = successor_state.get_agent_position()
@@ -65,8 +68,24 @@ class MyAgent1(pacai.core.agent.Agent):
             }
         return feature_dict
 
-    def eval_action(self, state: pacai.core.gamestate.GameState, action: pacai.core.action.Action):
+    def eval_action(self, state: pacai.core.gamestate.GameState):
         # scoring actions here to choose best/highest!
+        best_score = 0.0
+        best_act = None
+        
+        actions = state.get_legal_actions()
+
+        feature_table = self.features(state, actions)
+        for action in actions:
+            features = feature_table[action]
+            curr_score = ....
+            if curr_score > best_score:
+                best_score = curr_score
+                best_act = action
+        return best_act
+        
+
+        
 
         
 
