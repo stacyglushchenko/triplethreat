@@ -81,7 +81,7 @@ class OffensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         self.weights['capsules'] = 20.0
         # self.weights['on_home_side'] = -5.0
         self.weights['distance_to_invader'] = -5.0
-        # self.weights['eaten_food'] = 100.0
+        self.weights['distance_to_scared_ghost'] = 4.0
 
         if (override_weights is None):
             override_weights = {}
@@ -244,7 +244,19 @@ def _extract_baseline_offensive_features(
         # all finished big reward
         features['capsules'] = 1000
     
-    # scared_ghost_pos = state.get_scared_opponent_positions(agent_index = agent.agent_index)
-    # if state.is_pa
+    # make it less scared of scared ghosts when on opps side
+    if pacman:
+        scared_ghost_positions = state.get_scared_opponent_positions(agent_index = agent.agent_index)
+        ghost_positions = state.get_nonscared_opponent_positions(agent_index = agent.agent_index)
+        if (len(scared_ghost_positions) > 0):
+            scared_ghost_distances = [
+                agent._distances.get_distance(current_position, scared_ghost_pos)
+                for scared_ghost_pos in scared_ghost_positions.values()
+            ]
+            features['distance_to_scared_ghost'] = min(distance for distance in scared_ghost_distances if (distance is not None))
+            if (features['distance_to_scared_ghost'] > GHOST_IGNORE_RANGE):
+                features['distance_to_scared_ghost'] = 100
+        else:
+            features['distance_to_scared_ghost'] = 0
             
     return features
