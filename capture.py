@@ -1,186 +1,249 @@
-import pacai.core.agentinfo
-import pacai.util.alias
-from pacai.search.distance import manhattan_distance
-from pacai.search.distance import maze_distance
-import pacai.core.gamestate
-import pacai.student.singlesearch
+import typing
 
+import pacai.agents.greedy
+import pacai.core.action
+import pacai.core.agent
+import pacai.core.board
+import pacai.core.gamestate
+import pacai.core.features
+import pacai.search.distance
+import pacai.pacman.board
+import pacai.capture.gamestate
+
+GHOST_IGNORE_RANGE: float = 2.5
 
 def create_team() -> list[pacai.core.agentinfo.AgentInfo]:
     """
     Get the agent information that will be used to create a capture team.
     """
 
-    agent1_info = pacai.core.agentinfo.AgentInfo(name = f"{__name__}.MyAgent1")
-    agent2_info = pacai.core.agentinfo.AgentInfo(name = f"{__name__}.MyAgent2")
+    agent1_info = pacai.core.agentinfo.AgentInfo(name = f"{__name__}.DefensiveAgent")
+    agent2_info = pacai.core.agentinfo.AgentInfo(name = f"{__name__}.OffensiveAgent")
 
     return [agent1_info, agent2_info]
 
 
-class MyAgent1(pacai.core.agent.Agent):
-    """ An agent that just takes random (legal) action. """
+class DefensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
+    """
+    A capture agent that prioritizes defending its own territory.
+    """
 
+    def __init__(self,
+            override_weights: dict[str, float] | None = None,
+            **kwargs: typing.Any) -> None:
+        kwargs['feature_extractor_func'] = _extract_baseline_defensive_features
+        super().__init__(**kwargs)
 
-    def get_action(self, state: pacai.core.gamestate.GameState) -> pacai.core.action.Action:
-        """ Choose a random action. """
+        self._distances: pacai.search.distance.DistancePreComputer = pacai.search.distance.DistancePreComputer()
+        """ Precompute distances. """
 
-        
-        legal_actions = state.get_legal_actions()
-        #print(self.eval_action(state))
-        best = self.eval(state)
-        return best
+        # Set base weights.
+        self.weights['on_home_side'] = 120.0
+        self.weights['stopped'] = -100.0
+        self.weights['reverse'] = 0.0
+        self.weights['num_invaders'] = -1000.0
+        self.weights['distance_to_invader'] = -40.0
+        self.weights['distance_to_ghost_squared'] = 0.0
+        self.weights['food_count'] = -10.0
+        self.weights['capsules'] = 0
+        # self.weights['dist_to_mid'] = 1.0
+        self.weights['distance_to_food'] = -1.0
 
+        if (override_weights is None):
+            override_weights = {}
 
-        values = []
-        max_value = -float('inf')
+        for (key, weight) in override_weights.items():
+            self.weights[key] = weight
 
-        for action in legal_actions:
-            value = self.eval(state)
-            values.append((value, action))
-            if value > max_value:
-                max_value = value
+    def game_start(self, initial_state: pacai.core.gamestate.GameState) -> None:
+        self._distances.compute(initial_state.board)
 
-        for element in values:
-            value, action = element
-            # return action
-            if value == max_value and action != 'STOP':
-                print("this is the best", action)
-                return action
+class OffensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
+    """
+    A capture agent that prioritizes defending its own territory.
+    """
 
-        return self.rng.choice(legal_actions)
+    def __init__(self,
+            override_weights: dict[str, float] | None = None,
+            **kwargs: typing.Any) -> None:
+        kwargs['feature_extractor_func'] = _extract_baseline_offensive_features
+        super().__init__(**kwargs)
+
+        self._distances: pacai.search.distance.DistancePreComputer = pacai.search.distance.DistancePreComputer()
+        """ Precompute distances. """
+
+        # Set base weights.
+        self.weights['score'] = 100.0
+        self.weights['distance_to_food'] = -1.2
+        self.weights['distance_to_ghost'] = 8.0
+        self.weights['distance_to_ghost_squared'] = 0.0
+        self.weights['capsules'] = 20.0
+        # self.weights['on_home_side'] = -5.0
+        self.weights['distance_to_invader'] = -5.0
+        # self.weights['eaten_food'] = 100.0
+
+        if (override_weights is None):
+            override_weights = {}
+
+        for (key, weight) in override_weights.items():
+            self.weights[key] = weight
+
+    def game_start(self, initial_state: pacai.core.gamestate.GameState) -> None:
+        self._distances.compute(initial_state.board)
+
+def _extract_baseline_defensive_features(
+        state: pacai.core.gamestate.GameState,
+        action: pacai.core.action.Action,
+        agent: pacai.core.agent.Agent | None = None,
+        **kwargs: typing.Any) -> pacai.core.features.FeatureDict:
+    agent = typing.cast(DefensiveAgent, agent)
+    state = typing.cast(pacai.capture.gamestate.GameState, state)
+    successor = state.generate_successor(action)
+
+    features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
+
+    current_position = state.get_agent_position(agent.agent_index)
+    if (current_position is None):
+        # We are dead and waiting to respawn.
+        return features
+
+    # Note the side of the board we are on.
+    features['on_home_side'] = int(state.is_ghost(agent_index = agent.agent_index))
+
+    # Prefer moving over stopping.
+    features['stopped'] = int(action == pacai.core.action.STOP)
+
+    # COMMENtED out since it could be benificial to turning around and running away!!
+    # # Prefer not turning around.
+    # # Remember that the state we get is already a successor, so we have to look two actions back.
+    # agent_actions = state.get_agent_actions(agent.agent_index)
+    # if (len(agent_actions) > 1):
+    # features['reverse'] = int(action == state.get_reverse_action(agent_actions[-2]))
+
+    # We don't like any invaders on our side.
+    invader_positions = state.get_invader_positions(agent_index = agent.agent_index)
+    features['num_invaders'] = len(invader_positions)
+
+    # Hunt down the closest invader!
+    if (len(invader_positions) > 0):
+        invader_distances = [agent._distances.get_distance(current_position, invader_position) for invader_position in invader_positions.values()]
+        features['distance_to_invader'] = min(distance for distance in invader_distances if (distance is not None))
     
-    def features(self, state: pacai.core.gamestate.GameState, actions: list[pacai.core.action.Action]):
-        """ 
-        Creates features for each action and stores them in a dictionairy to later score based on pacman's situation/placement in the environment 
-        """
-
-        feature_dict = {}
-        pos_pacman = state.get_agent_position()
-
-        for action in actions:
-            successor_state = state.generate_successor(action)
-            pos_successor = successor_state.get_agent_position()
-
-            enemies = [successor_state.get_agent_position(i) for i in successor_state.get_opponent_positions()]
-            
-            # offense (goal is to get food and avoid other team (havent incorporated other team yet))
-            # gets closest food
-            food = successor_state.get_food()
-            food_count = len(food)
-
-            closest_food = 9999
-            for f in food:
-                m_dist_food = maze_distance(pos_pacman, f, state)
-                if  m_dist_food < closest_food:
-                    closest_food = m_dist_food
-            # defense (goal is to search for invaders and eat them)
-            # checks the dist of closest invader
-            curr_food_distance = min(maze_distance(pos_successor, f, state) for f in food)
-
-
-            # beased on successor state to eval next action
-            invaders = successor_state.get_invader_positions()
-            invader_count = len(invaders)
-            closest_invader_dist = 9999
-            if invaders and not state.is_pacman():
-                scared = state.is_scared()
-                for i in invaders:
-                    pos_i = state.get_agent_position(i)
-                    m_dist = maze_distance(pos_successor, pos_i, state)
-                    if m_dist < closest_invader_dist:
-                        closest_invader_dist = m_dist
-            
-            run_away = 0
-            for enemy in enemies:
-                if maze_distance(pos_successor, enemy, state) < 2 and state.is_pacman():
-                    run_away = 1
-            
-            #succ_score = successor_state.score
-            
-            # populate dict (work in progress, not all is important mostly added the "important" methods on the documentation just because)
-            feature_dict[action] = {
-                'food_distance' : closest_food,
-                #"food_count" : food_count,
-                #"team_pos" : state.get_team_positions(1),
-                #"opp_pos" : state.get_opponent_positions(),
-                #"invader_distance" : closest_invader_dist,
-                #"curr_food_distance" : curr_food_distance,
-                #"successor_score" : succ_score,
-                # "run_away" : run_away
-            }
-        return feature_dict
-
-    def get_weights(self, state: pacai.core.gamestate.GameState, action: pacai.core.action.Action):
-        # added weights to prioritize certain categories
-        return {
-            #'successor_score': 2,
-            'food_distance': -2,
-            #'run_away': -100,
-        }
-
-    def eval(self, state: pacai.core.gamestate.GameState):
-        # scoring actions here to choose best/highest!
-        best_value = -9999
-        best_action = None
-
-        opposites = {'NORTH':'SOUTH', 'SOUTH':'NORTH', 'EAST':'WEST', 'WEST':'EAST', 'STOP':'STOP'}
-
-        actions = state.get_legal_actions()
-        pos_pacman = state.get_agent_position()
-
-        # which action is best loop : have not scored what is good/bad by how much yet
-        feature_table = self.features(state, actions)
-        for action in actions:
-            features = feature_table[action] 
-            print(features)
-            weights = self.get_weights(state, action)
-            value = sum(features[f] * weights[f] for f in features)
-        
-            last = state.get_last_agent_action()
-            print(action, value)
-
-            if last and action == opposites.get(last):
-                value -= 5
-
-            if action == 'STOP':
-                value -= 10
-
-            if value > best_value:
-                best_value = value
-                best_action = action
-        return best_action
+    # keeping defense hovering around our capsule so opps dont eat it and make us vulnerable to being scared
+    all_capsule_positions = state.board.get_marker_positions(pacai.pacman.board.MARKER_CAPSULE)
+    team_mod = state._team_modifier(agent.agent_index)
+    our_caps = []
+    for c in all_capsule_positions:
+        if team_mod == state._team_side(agent.agent_index, c):
+            our_caps.append(c)
+    if (len(our_caps) > 0):
+        distances_to_caps = []
+        for capsule_pos in our_caps:
+            distances_to_caps.append(agent._distances.get_distance(current_position, capsule_pos))
+        features["capsules"] = min(capsule for capsule in distances_to_caps if (capsule is not None))
     
-    '''def get_action(self, state: pacai.core.gamestate.GameState):
+    # # wall positions
+    # wall_positions = state.board.get_marker_positions(pacai.core.board.MARKER_WALL)
+    # agent_actions = state.get_agent_actions(agent.agent_index)
+    # for act in agent_actions:
+    # if
+    food_positions = state.get_food(agent_index = agent.agent_index)
+    next_food_positions = successor.get_food(agent_index = agent.agent_index)
+    if (len(food_positions) > 0):
+        food_distances = [agent._distances.get_distance(current_position, food_position) for food_position in food_positions]
+        features['distance_to_food'] = min(distance for distance in food_distances if (distance is not None))
+    
+    # keep track of where food was eaten, and defend that place
+    old_food = food_positions
+    new_food = next_food_positions
 
-        successor = state.generate_successor(action)
-        pos_succ = successor.get_agent_position()
-        features = feature_table[action]
-        curr_score = 0
-        print(action)
+    eaten_food = None
+    for f in old_food:
+        if f not in new_food:
+            eaten_food = f
+            break
 
-        #curr_dist = features["curr_food_distance"]
-        next_dist = features["food_distance"]
-        #print(curr_dist)
-        print(next_dist)
-        if next_dist < curr_dist:
-            curr_score += 5
+    if eaten_food is not None:
+        dist = agent._distances.get_distance(current_position, eaten_food)
+        # prefer closer distance
+        features['eaten_food'] = -dist
+    else:
+        features['eaten_food'] = 0
+
+    return features
+
+def _extract_baseline_offensive_features(
+        state: pacai.core.gamestate.GameState,
+        action: pacai.core.action.Action,
+        agent: pacai.core.agent.Agent | None = None,
+        **kwargs: typing.Any) -> pacai.core.features.FeatureDict:
+    agent = typing.cast(OffensiveAgent, agent)
+    state = typing.cast(pacai.capture.gamestate.GameState, state)
+    # parameter to make sure if off is pac or no
+    pacman = state.is_pacman(agent_index = agent.agent_index)
+    features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
+    features['score'] = state.get_normalized_score(agent.agent_index)
+
+    # Note the side of the board we are on.
+    features['on_home_side'] = int(state.is_ghost(agent_index = agent.agent_index))
+
+    # Prefer moving over stopping.
+    features['stopped'] = int(action == pacai.core.action.STOP)
+
+    # COMMENtED out since it could be benificial to turning around and running away!!
+    # # Prefer not turning around.
+    # # Remember that the state we get is already a successor, so we have to look two actions back.
+    # agent_actions = state.get_agent_actions(agent.agent_index)
+    # if (len(agent_actions) > 1):
+    #     features['reverse'] = int(action == state.get_reverse_action(agent_actions[-2]))
+
+    current_position = state.get_agent_position(agent.agent_index)
+    if (current_position is None):
+        # We are dead and waiting to respawn.
+        return features
+
+    food_positions = state.get_food(agent_index = agent.agent_index)
+    if (len(food_positions) > 0):
+        food_distances = [agent._distances.get_distance(current_position, food_position) for food_position in food_positions]
+        features['distance_to_food'] = min(distance for distance in food_distances if (distance is not None))
+    else:
+        # There is no food left, give a large score.
+        features['distance_to_food'] = -100000
+    if pacman:
+        ghost_positions = state.get_nonscared_opponent_positions(agent_index = agent.agent_index)
+        if (len(ghost_positions) > 0):
+            ghost_distances = [agent._distances.get_distance(current_position, ghost_position) for ghost_position in ghost_positions.values()]
+            features['distance_to_ghost'] = min(distance for distance in ghost_distances if (distance is not None))
+            if (features['distance_to_ghost'] > GHOST_IGNORE_RANGE):
+                features['distance_to_ghost'] = 100
+
+            features['distance_to_ghost_squared'] = features['distance_to_ghost'] ** 2
         else:
-            curr_score -= 1
-        # curr_score = 10 - features['food_distance']
-        if pos_succ != pos_pacman:
-            curr_score += 1
-        if curr_score > best_score:
-            best_score = curr_score
-            best_act = action
-        return best_act'''
+            features['distance_to_ghost'] = 0
+    else:
+        opp_pos = state.get_invader_positions(agent_index = agent.agent_index)
+        if (len(opp_pos) > 0):
+            opp_dists = [agent._distances.get_distance(current_position, op) for op in opp_pos.values()]
+            features['distance_to_invader'] = min(distance for distance in opp_dists if (distance is not None))
 
-        
-
-class MyAgent2(pacai.core.agent.Agent):
-    """ An agent that just takes random (legal) action. """
-
-    def get_action(self, state: pacai.core.gamestate.GameState) -> pacai.core.action.Action:
-        """ Choose a random action. """
-
-        legal_actions = state.get_legal_actions()
-        return self.rng.choice(legal_actions)
+    # get opponent capsules otherwise offense will hover on its own! Get opp then eat so enemy is ghost
+    all_capsule_positions = state.board.get_marker_positions(pacai.pacman.board.MARKER_CAPSULE)
+    team_mod = state._team_modifier(agent.agent_index)
+    opp_caps = []
+    for c in all_capsule_positions:
+        if team_mod != state._team_side(agent.agent_index, c):
+            opp_caps.append(c)
+    if (len(opp_caps) > 0):
+        distance_to_markers = [agent._distances.get_distance(current_position, capsule_position) for capsule_position in opp_caps]
+        valid_capsule = [d for d in distance_to_markers if d is not None]
+        if valid_capsule:
+            # closer capusiles give larger feature*weight.
+            features['capsules'] = -min(valid_capsule)
+    else:
+        # all finished big reward
+        features['capsules'] = 1000
+    
+    # scared_ghost_pos = state.get_scared_opponent_positions(agent_index = agent.agent_index)
+    # if state.is_pa
+            
+    return features
