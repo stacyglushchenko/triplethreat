@@ -80,7 +80,10 @@ class OffensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         self.weights['capsules'] = 20.0
         # self.weights['on_home_side'] = -5.0
         self.weights['distance_to_invader'] = -5.0
+<<<<<<< HEAD
         # self.weights['eaten_food'] = 100.0
+=======
+>>>>>>> 88d88e6d0abb216c1018ed606bd553e3f4d74d31
 
         if (override_weights is None):
             override_weights = {}
@@ -98,7 +101,10 @@ def _extract_baseline_defensive_features(
         **kwargs: typing.Any) -> pacai.core.features.FeatureDict:
     agent = typing.cast(DefensiveAgent, agent)
     state = typing.cast(pacai.capture.gamestate.GameState, state)
+<<<<<<< HEAD
     successor = state.generate_successor(action)
+=======
+>>>>>>> 88d88e6d0abb216c1018ed606bd553e3f4d74d31
 
     features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
 
@@ -128,6 +134,7 @@ def _extract_baseline_defensive_features(
     if (len(invader_positions) > 0):
         invader_distances = [agent._distances.get_distance(current_position, invader_position) for invader_position in invader_positions.values()]
         features['distance_to_invader'] = min(distance for distance in invader_distances if (distance is not None))
+<<<<<<< HEAD
     
     # keeping defense hovering around our capsule so opps dont eat it and make us vulnerable to being scared
     all_capsule_positions = state.board.get_marker_positions(pacai.pacman.board.MARKER_CAPSULE)
@@ -184,6 +191,46 @@ def _extract_baseline_offensive_features(
     features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
     features['score'] = state.get_normalized_score(agent.agent_index)
 
+=======
+        
+    # keeping defense hovering around our capsule so opps dont eat it and make us vulnerable to being scared
+    all_capsule_positions = state.board.get_marker_positions(pacai.pacman.board.MARKER_CAPSULE)
+    team_mod = state._team_modifier(agent.agent_index)
+    our_caps = []
+    for c in all_capsule_positions:
+        if team_mod == state._team_side(agent.agent_index, c):
+            our_caps.append(c)
+    if (len(our_caps) > 0):
+        distances_to_caps = []
+        for capsule_pos in our_caps:
+            distances_to_caps.append(agent._distances.get_distance(current_position, capsule_pos))
+        features["capsules"] = min(capsule for capsule in distances_to_caps if (capsule is not None))
+    
+    # # wall positions
+    # wall_positions = state.board.get_marker_positions(pacai.core.board.MARKER_WALL)
+    # agent_actions = state.get_agent_actions(agent.agent_index)
+    # for act in agent_actions:
+    # if
+    food_positions = state.get_food(agent_index = agent.agent_index)
+    if (len(food_positions) > 0):
+        food_distances = [agent._distances.get_distance(current_position, food_position) for food_position in food_positions]
+        features['distance_to_food'] = min(distance for distance in food_distances if (distance is not None))
+    
+    return features
+
+def _extract_baseline_offensive_features(
+        state: pacai.core.gamestate.GameState,
+        action: pacai.core.action.Action,
+        agent: pacai.core.agent.Agent | None = None,
+        **kwargs: typing.Any) -> pacai.core.features.FeatureDict:
+    agent = typing.cast(OffensiveAgent, agent)
+    state = typing.cast(pacai.capture.gamestate.GameState, state)
+    # parameter to make sure if off is pac or no
+    pacman = state.is_pacman(agent_index = agent.agent_index)
+    features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
+    features['score'] = state.get_normalized_score(agent.agent_index)
+
+>>>>>>> 88d88e6d0abb216c1018ed606bd553e3f4d74d31
     # Note the side of the board we are on.
     features['on_home_side'] = int(state.is_ghost(agent_index = agent.agent_index))
 
