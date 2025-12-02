@@ -40,14 +40,15 @@ class DefensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         # Set base weights.
         self.weights['on_home_side'] = 120.0
         self.weights['stopped'] = -100.0
-        self.weights['reverse'] = 0 # changed from 0
+        self.weights['reverse'] = 0
         self.weights['num_invaders'] = -1000.0
-        self.weights['distance_to_invader'] = -100.0 # changed from - 40
+        self.weights['distance_to_invader'] = -10.0   # changed from - 40
         self.weights['distance_to_ghost_squared'] = 0.0
         self.weights['food_count'] = -10.0
         # self.weights['capsules'] = 0
         # self.weights['dist_to_mid'] = 1.0
         self.weights['distance_to_food'] = -1.0
+        self.weights['distance_to_enemy'] = -5  # added
         # self.weights['eaten_food'] = 100.0
 
         if (override_weights is None):
@@ -78,7 +79,7 @@ class OffensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         self.weights['distance_to_food'] = -1.2
         self.weights['distance_to_ghost'] = 8.0
         self.weights['distance_to_ghost_squared'] = 0.0
-        self.weights['capsules'] = 20.0 #changed from 20
+        self.weights['capsules'] = 20.0
         # self.weights['on_home_side'] = -5.0
         self.weights['distance_to_invader'] = -5.0
         self.weights['distance_to_scared_ghost'] = 4.0
@@ -99,7 +100,7 @@ def _extract_baseline_defensive_features(
         **kwargs: typing.Any) -> pacai.core.features.FeatureDict:
     agent = typing.cast(DefensiveAgent, agent)
     state = typing.cast(pacai.capture.gamestate.GameState, state)
-    successor = state.generate_successor(action)
+    # successor = state.generate_successor(action)
 
     features: pacai.core.features.FeatureDict = pacai.core.features.FeatureDict()
 
@@ -129,8 +130,13 @@ def _extract_baseline_defensive_features(
         features['reverse'] = 1'''
 
     # We don't like any invaders on our side.
+    enemy_positions = state.get_opponent_positions(agent_index = agent.agent_index)
     invader_positions = state.get_invader_positions(agent_index = agent.agent_index)
     features['num_invaders'] = len(invader_positions)
+    
+    if (len(enemy_positions) > 0):
+        enemy_distances = [agent._distances.get_distance(current_position, enemy_position) for enemy_position in enemy_positions.values()]
+        features['distance_to_enemy'] = min(distance for distance in enemy_distances if (distance is not None))
 
     # Hunt down the closest invader!
     if (len(invader_positions) > 0):
@@ -156,7 +162,7 @@ def _extract_baseline_defensive_features(
     # for act in agent_actions:
     # if
     food_positions = state.get_food(agent_index = agent.agent_index)
-    next_food_positions = successor.get_food(agent_index = agent.agent_index)
+    # next_food_positions = successor.get_food(agent_index = agent.agent_index)
     if (len(food_positions) > 0):
         food_distances = [agent._distances.get_distance(current_position, food_position) for food_position in food_positions]
         features['distance_to_food'] = min(distance for distance in food_distances if (distance is not None))
@@ -246,7 +252,7 @@ def _extract_baseline_offensive_features(
         valid_capsule = [d for d in distance_to_markers if d is not None]
         if valid_capsule:
             # closer capusiles give larger feature*weight.
-            features['capsules'] = -min(valid_capsule) 
+            features['capsules'] = -min(valid_capsule)
     else:
         # all finished big reward
         features['capsules'] = 1000
