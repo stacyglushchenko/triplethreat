@@ -40,15 +40,15 @@ class DefensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         # Set base weights.
         self.weights['on_home_side'] = 120.0
         self.weights['stopped'] = -100.0
-        self.weights['reverse'] = 0.0
+        self.weights['reverse'] = 0 # changed from 0
         self.weights['num_invaders'] = -1000.0
-        self.weights['distance_to_invader'] = -40.0
+        self.weights['distance_to_invader'] = -100.0 # changed from - 40
         self.weights['distance_to_ghost_squared'] = 0.0
         self.weights['food_count'] = -10.0
-        self.weights['capsules'] = 0
+        # self.weights['capsules'] = 0
         # self.weights['dist_to_mid'] = 1.0
         self.weights['distance_to_food'] = -1.0
-        self.weights['eaten_food'] = 100.0
+        # self.weights['eaten_food'] = 100.0
 
         if (override_weights is None):
             override_weights = {}
@@ -78,7 +78,7 @@ class OffensiveAgent(pacai.agents.greedy.GreedyFeatureAgent):
         self.weights['distance_to_food'] = -1.2
         self.weights['distance_to_ghost'] = 8.0
         self.weights['distance_to_ghost_squared'] = 0.0
-        self.weights['capsules'] = 20.0
+        self.weights['capsules'] = 20.0 #changed from 20
         # self.weights['on_home_side'] = -5.0
         self.weights['distance_to_invader'] = -5.0
         self.weights['distance_to_scared_ghost'] = 4.0
@@ -115,11 +115,18 @@ def _extract_baseline_defensive_features(
     features['stopped'] = int(action == pacai.core.action.STOP)
 
     # COMMENtED out since it could be benificial to turning around and running away!!
+    # Keep penalizing reversing since this is the defensive agent, shouldn't run away
     # # Prefer not turning around.
     # # Remember that the state we get is already a successor, so we have to look two actions back.
-    # agent_actions = state.get_agent_actions(agent.agent_index)
-    # if (len(agent_actions) > 1):
-    # features['reverse'] = int(action == state.get_reverse_action(agent_actions[-2]))
+    '''agent_actions = state.get_agent_actions(agent.agent_index)
+    if (len(agent_actions) > 1):
+        features['reverse'] = int(action == state.get_reverse_action(agent_actions[-2]))
+    
+    rev = state.get_reverse_action(agent_actions[-2])
+    print(rev)
+    # rev = Directions.REVERSE[state.get_agent_state(self.index).get_direction()]
+    if (action == rev):
+        features['reverse'] = 1'''
 
     # We don't like any invaders on our side.
     invader_positions = state.get_invader_positions(agent_index = agent.agent_index)
@@ -155,7 +162,7 @@ def _extract_baseline_defensive_features(
         features['distance_to_food'] = min(distance for distance in food_distances if (distance is not None))
     
     # keep track of where food was eaten, and defend that place
-    old_food = food_positions
+    '''old_food = food_positions
     new_food = next_food_positions
 
     eaten_food = None
@@ -169,7 +176,7 @@ def _extract_baseline_defensive_features(
         # prefer closer distance
         features['eaten_food'] = -dist
     else:
-        features['eaten_food'] = 0
+        features['eaten_food'] = 0'''
 
     return features
 
@@ -239,15 +246,14 @@ def _extract_baseline_offensive_features(
         valid_capsule = [d for d in distance_to_markers if d is not None]
         if valid_capsule:
             # closer capusiles give larger feature*weight.
-            features['capsules'] = -min(valid_capsule)
+            features['capsules'] = -min(valid_capsule) 
     else:
         # all finished big reward
         features['capsules'] = 1000
     
-    # make it less scared of scared ghosts when on opps side
+    # make it less scared of scared ghosts when on opps side -> improves average turns
     if pacman:
         scared_ghost_positions = state.get_scared_opponent_positions(agent_index = agent.agent_index)
-        ghost_positions = state.get_nonscared_opponent_positions(agent_index = agent.agent_index)
         if (len(scared_ghost_positions) > 0):
             scared_ghost_distances = [
                 agent._distances.get_distance(current_position, scared_ghost_pos)
